@@ -17,6 +17,7 @@ type Target struct {
 	Url       string   `yaml:"url"`
 	SSLVerify bool     `yaml:"ssl_verify"`
 	Method    string   `yaml:"method"`
+	Status    int      `yaml:"status"`
 	Headers   []Header `yaml:"headers"`
 	Body      string   `yaml:"body"`
 	Timeout   int      `yaml:"timeout"`
@@ -45,7 +46,7 @@ type Config struct {
 // check error
 func check(e error) {
 	if e != nil {
-		panic(e)
+		fmt.Println(e)
 	}
 }
 
@@ -104,7 +105,7 @@ func requestToTargetIsActive(target Target) bool {
 			check(err)
 		}(resp)
 		// check response status code
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != target.Status {
 			return false
 		}
 	} else {

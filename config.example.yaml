@@ -3,6 +3,7 @@ target:
     url: "http://localhost/api/healt-check"
     ssl_verify: false
     method: "GET"
+    status: 200
     headers:
       - name: "Content-Type"
         value: "application/json"
