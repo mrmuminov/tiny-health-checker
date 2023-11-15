@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"net/http"
@@ -12,12 +13,13 @@ import (
 
 // Target struct
 type Target struct {
-	Name    string   `yaml:"name"`
-	Url     string   `yaml:"url"`
-	Method  string   `yaml:"method"`
-	Headers []Header `yaml:"headers"`
-	Body    string   `yaml:"body"`
-	Timeout int      `yaml:"timeout"`
+	Name      string   `yaml:"name"`
+	Url       string   `yaml:"url"`
+	SSLVerify bool     `yaml:"ssl_verify"`
+	Method    string   `yaml:"method"`
+	Headers   []Header `yaml:"headers"`
+	Body      string   `yaml:"body"`
+	Timeout   int      `yaml:"timeout"`
 }
 
 // Header struct
@@ -72,6 +74,16 @@ func main() {
 func requestToTargetIsActive(target Target) bool {
 	// make http client
 	var client = &http.Client{}
+	// disable ssl verify
+	if !target.SSLVerify {
+		// disable ssl verify
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		// set transport
+		client.Transport = tr
+	}
+
 	// set timeout
 	client.Timeout = time.Duration(target.Timeout) * time.Second
 	// make http request

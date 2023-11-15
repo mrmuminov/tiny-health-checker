@@ -1,6 +1,7 @@
 target:
   - name: "Local Target 1"
     url: "http://localhost/api/healt-check"
+    ssl_verify: false
     method: "GET"
     headers:
       - name: "Content-Type"
