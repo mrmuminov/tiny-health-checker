@@ -1,0 +1,13 @@
+target:
+  - name: "Local Target 1"
+    url: "http://localhost/api/healt-check"
+    method: "GET"
+    headers:
+      - name: "Content-Type"
+        value: "application/json"
+    timeout: 3
+alert:
+  - name: "Telegram Alert Bot"
+    type: "telegram"
+    token: "1234:AAE0J"
+    chat_id: 1
