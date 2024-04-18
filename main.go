@@ -2,69 +2,38 @@
 package main
 
 import (
-	"bufio"
 	"crypto/tls"
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"net/http"
-	"os"
+	"strconv"
 	"time"
+	"tiny-healt-checker/alerts"
+	"tiny-healt-checker/structs"
+	"tiny-healt-checker/utils"
 )
 
-// Target struct
-type Target struct {
-	Name      string   `yaml:"name"`
-	Url       string   `yaml:"url"`
-	SSLVerify bool     `yaml:"ssl_verify"`
-	Method    string   `yaml:"method"`
-	Status    int      `yaml:"status"`
-	Headers   []Header `yaml:"headers"`
-	Body      string   `yaml:"body"`
-	Timeout   int      `yaml:"timeout"`
-}
-
-// Header struct
-type Header struct {
-	Name  string `yaml:"name"`
-	Value string `yaml:"value"`
-}
-
-// Alert struct
-type Alert struct {
-	Name   string `yaml:"name"`
-	Type   string `yaml:"type"`
-	Token  string `yaml:"token"`
-	ChatId string `yaml:"chat_id"`
-}
-
-// Config struct
-type Config struct {
-	Target []Target `yaml:"target"`
-	Alert  []Alert  `yaml:"alert"`
-}
-
-// check error
-func check(e error) {
-	if e != nil {
-		fmt.Println(e)
-	}
-}
-
-// main function
+// main function for health checker app entry point
 func main() {
 	// set yaml file path
 	file := "config.yaml"
 	// set config struct
-	config := Config{}
+	config := structs.Config{}
 	// read yaml file
-	data, _ := readFile(file)
+	data, _ := utils.ReadFile(file)
 	// unmarshal yaml file
 	err := yaml.Unmarshal([]byte(data), &config)
-	check(err)
+	utils.CheckError(err)
 
-	// check targets
+	// CheckError targets
 	for _, target := range config.Target {
-		// check target
+		if target.Retry.Interval < 1 {
+			target.Retry.Interval = 1
+		}
+		if target.Retry.Count < 1 {
+			target.Retry.Count = 1
+		}
+		// CheckError target
 		if !requestToTargetIsActive(target) {
 			// send alert
 			sendAlert(target, config.Alert)
@@ -72,101 +41,93 @@ func main() {
 	}
 }
 
-func requestToTargetIsActive(target Target) bool {
+// requestToTargetIsActive function for checking target is active
+func requestToTargetIsActive(target structs.Target) (isActive bool) {
 	// make http client
-	var client = &http.Client{}
-	// disable ssl verify
-	if !target.SSLVerify {
-		// disable ssl verify
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	client := MakeHttpClient(target)
+
+	i := 1
+	for i <= target.Retry.Count {
+
+		resp, err := MakeHttpRequest(target, client)
+
+		if !utils.CheckError(err) {
+			// If error, close response body and return false
+			err := resp.Body.Close()
+			if err != nil {
+				return false
+			}
+			return false
 		}
-		// set transport
-		client.Transport = tr
+
+		// Check response status code
+		if resp == nil {
+			return false
+		}
+		if resp.StatusCode == target.Status {
+			// If status matches, close response body and return true
+			err := resp.Body.Close()
+			if err != nil {
+				return false
+			}
+			return true
+		}
+
+		// Close response body if status doesn't match
+		err = resp.Body.Close()
+		if err != nil {
+			return false
+		}
+
+		// If status doesn't match, wait and retry
+		fmt.Println(target.Name + " is DOWN. Sleep " + strconv.Itoa(target.Retry.Interval) + " secound. step: " + strconv.Itoa(i))
+		time.Sleep(time.Duration(target.Retry.Interval) * time.Second)
+		i++
+	}
+	return false
+}
+
+func MakeHttpClient(target structs.Target) *http.Client {
+	// make http client
+	client := &http.Client{}
+
+	// set transport with ssl check configuration
+	client.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: !target.SSLVerify},
 	}
 
 	// set timeout
 	client.Timeout = time.Duration(target.Timeout) * time.Second
-	// make http request
+
+	return client
+}
+
+func MakeHttpRequest(target structs.Target, client *http.Client) (*http.Response, error) {
+
 	req, err := http.NewRequest(target.Method, target.Url, nil)
 	if err != nil {
 		fmt.Println(err)
 	}
+
 	// set headers
 	for _, header := range target.Headers {
 		req.Header.Set(header.Name, header.Value)
 	}
+
 	// send request
-	resp, err := client.Do(req)
-	if err == nil {
-		// close response body
-		defer func(resp *http.Response) {
-			err := resp.Body.Close()
-			check(err)
-		}(resp)
-		// check response status code
-		if resp.StatusCode != target.Status {
-			return false
-		}
-	} else {
-		return false
-	}
-	return true
+	return client.Do(req)
 }
 
-func sendAlert(target Target, alert []Alert) {
-	// send alert
-	for _, alert := range alert {
+// sendAlert function for sending alert
+func sendAlert(target structs.Target, alertList []structs.Alert) {
+	for _, alert := range alertList {
+		var t alerts.AlertInterface
 		switch alert.Type {
 		case "telegram":
-			// send telegram alert
-			sendTelegramAlert(target, alert)
+			t = alerts.TelegramAlert{Target: target, Alert: alert}
+		}
+		if t != nil {
+			t.SendAlert()
 		}
 	}
-}
-
-func sendTelegramAlert(target Target, alert Alert) {
-	// make client
-	var client = &http.Client{}
-	// make request
-	req, err := http.NewRequest("GET", "https://api.telegram.org/bot"+alert.Token+"/sendMessage", nil)
-	check(err)
-	// set query params
-	q := req.URL.Query()
-	q.Add("chat_id", alert.ChatId)
-	q.Add("text", "Target "+target.Name+" is down")
-	req.URL.RawQuery = q.Encode()
-	// send request
-	resp, err := client.Do(req)
-	check(err)
-	// close response body
-	defer func(resp *http.Response) {
-		err := resp.Body.Close()
-		check(err)
-	}(resp)
-	// check response status code
-	if resp.StatusCode != 200 {
-		panic("Error sending telegram alert")
-	}
-}
-
-// read file
-func readFile(filePath string) (string, error) {
-	// open file
-	file, err := os.Open(filePath)
-	// check error
-	check(err)
-	// close file
-	defer func(file *os.File) {
-		err := file.Close()
-		check(err)
-	}(file)
-	// read file
-	var lines string
-	scanner := bufio.NewScanner(file)
-	// read line by line
-	for scanner.Scan() {
-		lines += scanner.Text() + "\n"
-	}
-	return lines, scanner.Err()
 }

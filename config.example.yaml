@@ -8,6 +8,9 @@ target:
       - name: "Content-Type"
         value: "application/json"
     timeout: 3
+    retry:
+      count: 1
+      interval: 1
 alert:
   - name: "Telegram Alert Bot"
     type: "telegram"
