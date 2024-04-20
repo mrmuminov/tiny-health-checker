@@ -1,5 +1,5 @@
 package alerts
 
 type AlertInterface interface {
-	SendAlert()
+	SendAlert(message string)
 }

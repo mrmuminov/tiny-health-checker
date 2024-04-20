@@ -1,6 +1,8 @@
 package alerts
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"tiny-healt-checker/structs"
 	"tiny-healt-checker/utils"
@@ -12,7 +14,7 @@ type TelegramAlert struct {
 }
 
 // SendAlert function for sending telegram alert
-func (t TelegramAlert) SendAlert() {
+func (t TelegramAlert) SendAlert(message string) {
 	// make client
 	var client = &http.Client{}
 
@@ -23,7 +25,8 @@ func (t TelegramAlert) SendAlert() {
 	// set query params
 	q := req.URL.Query()
 	q.Add("chat_id", t.Alert.ChatId)
-	q.Add("text", "Target "+t.Target.Name+" is down")
+	q.Add("text", message)
+	q.Add("parse_mode", "markdown")
 	req.URL.RawQuery = q.Encode()
 
 	// send request
@@ -31,13 +34,13 @@ func (t TelegramAlert) SendAlert() {
 	utils.CheckError(err)
 
 	// close response body
-	defer func(resp *http.Response) {
-		err := resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
 		utils.CheckError(err)
-	}(resp)
+	}(resp.Body)
 
 	// check response status code
 	if resp.StatusCode != 200 {
-		panic("Error sending telegram alert")
+		fmt.Println("Error sending Telegram alert")
 	}
 }

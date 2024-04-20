@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,15 +14,10 @@ import (
 	"tiny-healt-checker/utils"
 )
 
-// main function for health checker app entry point
 func main() {
-	// set yaml file path
 	file := "config.yaml"
-	// set config struct
 	config := structs.Config{}
-	// read yaml file
 	data, _ := utils.ReadFile(file)
-	// unmarshal yaml file
 	err := yaml.Unmarshal([]byte(data), &config)
 	utils.CheckError(err)
 
@@ -34,57 +30,57 @@ func main() {
 			target.Retry.Count = 1
 		}
 		// CheckError target
-		if !requestToTargetIsActive(target) {
+		isActive, resp, bodyBytes := requestToTargetIsActive(target)
+		if !isActive {
 			// send alert
-			sendAlert(target, config.Alert)
+			sendAlert(target, config.Alert, resp, bodyBytes)
 		}
 	}
 }
 
-// requestToTargetIsActive function for checking target is active
-func requestToTargetIsActive(target structs.Target) (isActive bool) {
-	// make http client
+func requestToTargetIsActive(target structs.Target) (bool, *http.Response, []byte) {
 	client := MakeHttpClient(target)
-
+	var resp *http.Response
+	var err error
+	var bodyBytes []byte
 	i := 1
 	for i <= target.Retry.Count {
-
-		resp, err := MakeHttpRequest(target, client)
-
+		resp, err = MakeHttpRequest(target, client)
 		if !utils.CheckError(err) {
 			// If error, close response body and return false
-			err := resp.Body.Close()
+			err = resp.Body.Close()
 			if err != nil {
-				return false
+				return false, resp, bodyBytes
 			}
-			return false
+			return false, resp, bodyBytes
 		}
 
 		// Check response status code
 		if resp == nil {
-			return false
+			return false, nil, nil
 		}
+
+		bodyBytes, err = io.ReadAll(resp.Body)
+
+		// If status matches, close response body and return true
+		err = resp.Body.Close()
+		if err != nil {
+			return false, resp, bodyBytes
+		}
+
 		if resp.StatusCode == target.Status {
-			// If status matches, close response body and return true
-			err := resp.Body.Close()
-			if err != nil {
-				return false
-			}
-			return true
+			return true, resp, bodyBytes
 		}
 
 		// Close response body if status doesn't match
 		err = resp.Body.Close()
-		if err != nil {
-			return false
-		}
 
 		// If status doesn't match, wait and retry
-		fmt.Println(target.Name + " is DOWN. Sleep " + strconv.Itoa(target.Retry.Interval) + " secound. step: " + strconv.Itoa(i))
+		fmt.Println(target.Name + " is DOWN. Sleep " + strconv.Itoa(target.Retry.Interval) + " second. step: " + strconv.Itoa(i))
 		time.Sleep(time.Duration(target.Retry.Interval) * time.Second)
 		i++
 	}
-	return false
+	return false, resp, bodyBytes
 }
 
 func MakeHttpClient(target structs.Target) *http.Client {
@@ -118,16 +114,27 @@ func MakeHttpRequest(target structs.Target, client *http.Client) (*http.Response
 	return client.Do(req)
 }
 
-// sendAlert function for sending alert
-func sendAlert(target structs.Target, alertList []structs.Alert) {
+func sendAlert(target structs.Target, alertList []structs.Alert, resp *http.Response, bodyBytes []byte) {
 	for _, alert := range alertList {
 		var t alerts.AlertInterface
 		switch alert.Type {
 		case "telegram":
 			t = alerts.TelegramAlert{Target: target, Alert: alert}
+			break
+		case "std":
+			t = alerts.StdAlert{Target: target, Alert: alert}
+			break
 		}
 		if t != nil {
-			t.SendAlert()
+			message := "!!! DOWN: `" + target.Name + "` | " + target.Method + " `" + target.Url + "`"
+			if resp != nil {
+				message += " `" + resp.Status + "`"
+			}
+			message += " (Count: `" + strconv.Itoa(target.Retry.Count) + "`, Interval: `" + strconv.Itoa(target.Retry.Interval) + "`)"
+			if bodyBytes != nil {
+				message += "\n```\n" + string(bodyBytes) + "```"
+			}
+			t.SendAlert(message)
 		}
 	}
 }

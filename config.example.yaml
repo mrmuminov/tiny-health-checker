@@ -12,7 +12,9 @@ target:
       count: 1
       interval: 1
 alert:
-  - name: "Telegram Alert Bot"
-    type: "telegram"
+  - type: "telegram"
+    name: "Telegram Alert Bot"
     token: "1234:AAE0J"
     chat_id: 1
+  - type: "std"
+    name: "STD Log"
