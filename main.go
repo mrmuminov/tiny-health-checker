@@ -126,15 +126,20 @@ func sendAlert(target structs.Target, alertList []structs.Alert, resp *http.Resp
 			break
 		}
 		if t != nil {
-			message := "!!! DOWN: `" + target.Name + "` | " + target.Method + " `" + target.Url + "`"
-			if resp != nil {
-				message += " `" + resp.Status + "`"
-			}
-			message += " (Count: `" + strconv.Itoa(target.Retry.Count) + "`, Interval: `" + strconv.Itoa(target.Retry.Interval) + "`)"
-			if bodyBytes != nil {
-				message += "\n```\n" + string(bodyBytes) + "```"
-			}
+			message := serializeAlertMessage(target, resp, bodyBytes)
 			t.SendAlert(message)
 		}
 	}
+}
+
+func serializeAlertMessage(target structs.Target, resp *http.Response, bodyBytes []byte) string {
+	message := "!!! DOWN: `" + target.Name + "` | " + target.Method + " `" + target.Url + "`"
+	if resp != nil {
+		message += " `" + resp.Status + "`"
+	}
+	message += " (Count: `" + strconv.Itoa(target.Retry.Count) + "`, Interval: `" + strconv.Itoa(target.Retry.Interval) + "`)"
+	if bodyBytes != nil {
+		message += "\n```\n" + string(bodyBytes) + "```"
+	}
+	return message
 }
