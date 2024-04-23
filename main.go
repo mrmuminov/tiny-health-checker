@@ -4,7 +4,6 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
 	"strconv"
@@ -15,13 +14,9 @@ import (
 )
 
 func main() {
-	file := "config.yaml"
-	config := structs.Config{}
-	data, _ := utils.ReadFile(file)
-	err := yaml.Unmarshal([]byte(data), &config)
-	utils.CheckError(err)
 
-	// CheckError targets
+	config := utils.ParseConfig()
+
 	for _, target := range config.Target {
 		if target.Retry.Interval < 1 {
 			target.Retry.Interval = 1
@@ -93,6 +88,9 @@ func MakeHttpClient(target structs.Target) *http.Client {
 	}
 
 	// set timeout
+	if target.Timeout <= 0 {
+		target.Timeout = 1
+	}
 	client.Timeout = time.Duration(target.Timeout) * time.Second
 
 	return client
