@@ -13,6 +13,7 @@ import (
 func CheckError(e error) bool {
 	if e != nil {
 		fmt.Println(e)
+		return false
 	}
 	return true
 }

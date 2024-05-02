@@ -34,12 +34,12 @@ func main() {
 }
 
 func requestToTargetIsActive(target structs.Target) (bool, *http.Response, []byte) {
-	client := MakeHttpClient(target)
 	var resp *http.Response
 	var err error
 	var bodyBytes []byte
 	i := 1
 	for i <= target.Retry.Count {
+		client := MakeHttpClient(target)
 		resp, err = MakeHttpRequest(target, client)
 		if !utils.CheckError(err) {
 			// If error, close response body and return false
@@ -52,7 +52,8 @@ func requestToTargetIsActive(target structs.Target) (bool, *http.Response, []byt
 
 		// Check response status code
 		if resp == nil {
-			return false, nil, nil
+			i++
+			continue
 		}
 
 		bodyBytes, err = io.ReadAll(resp.Body)
