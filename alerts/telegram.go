@@ -20,7 +20,12 @@ func (t TelegramAlert) SendAlert(message string) {
 
 	// make request
 	req, err := http.NewRequest("GET", "https://api.telegram.org/bot"+t.Alert.Token+"/sendMessage", nil)
-	utils.CheckError(err)
+	utils.HasNotError(err)
+
+	// cut text if it is too long. Telegram has a limit of 4096 characters
+	if len(message) > 4096 {
+		message = message[:4096]
+	}
 
 	// set query params
 	q := req.URL.Query()
@@ -31,12 +36,12 @@ func (t TelegramAlert) SendAlert(message string) {
 
 	// send request
 	resp, err := client.Do(req)
-	utils.CheckError(err)
+	utils.HasNotError(err)
 
 	// close response body
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
-		utils.CheckError(err)
+		utils.HasNotError(err)
 	}(resp.Body)
 
 	// check response status code

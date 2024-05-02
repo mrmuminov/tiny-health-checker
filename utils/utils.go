@@ -9,25 +9,25 @@ import (
 	"tiny-healt-checker/structs"
 )
 
-// CheckError error function for error handling
-func CheckError(e error) bool {
-	if e != nil {
-		fmt.Println(e)
-		return false
+// HasNotError error function for error handling
+func HasNotError(e error) bool {
+	if e == nil {
+		return true
 	}
-	return true
+	fmt.Println(e)
+	return false
 }
 
 // ReadFile function for reading file
 func ReadFile(filePath string) (string, error) {
 	// open file
 	file, err := os.Open(filePath)
-	// CheckError error
-	CheckError(err)
+	// HasNotError error
+	HasNotError(err)
 	// close file
 	defer func(file *os.File) {
 		err := file.Close()
-		CheckError(err)
+		HasNotError(err)
 	}(file)
 	// read file
 	var lines string
@@ -47,7 +47,7 @@ func ParseFlags() string {
 
 func GetConfigFile(configFile string) string {
 	data, err := ReadFile(configFile)
-	CheckError(err)
+	HasNotError(err)
 	return data
 }
 
@@ -56,6 +56,6 @@ func ParseConfig() structs.Config {
 	data := GetConfigFile(configFile)
 	config := structs.Config{}
 	err := yaml.Unmarshal([]byte(data), &config)
-	CheckError(err)
+	HasNotError(err)
 	return config
 }

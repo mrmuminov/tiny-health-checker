@@ -24,7 +24,7 @@ func main() {
 		if target.Retry.Count < 1 {
 			target.Retry.Count = 1
 		}
-		// CheckError target
+		// HasNotError target
 		isActive, resp, bodyBytes := requestToTargetIsActive(target)
 		if !isActive {
 			// send alert
@@ -41,9 +41,13 @@ func requestToTargetIsActive(target structs.Target) (bool, *http.Response, []byt
 	for i <= target.Retry.Count {
 		client := MakeHttpClient(target)
 		resp, err = MakeHttpRequest(target, client)
-		if !utils.CheckError(err) {
+		if !utils.HasNotError(err) {
 			// If error, close response body and return false
-			err = resp.Body.Close()
+			if resp != nil {
+				if resp.Body != nil {
+					err = resp.Body.Close()
+				}
+			}
 			if err != nil {
 				return false, resp, bodyBytes
 			}
@@ -132,7 +136,9 @@ func sendAlert(target structs.Target, alertList []structs.Alert, resp *http.Resp
 }
 
 func serializeAlertMessage(target structs.Target, resp *http.Response, bodyBytes []byte) string {
-	message := "!!! DOWN: `" + target.Name + "` | " + target.Method + " `" + target.Url + "`"
+
+	now := time.Now()
+	message := now.Format(time.DateTime) + "\n⚠ `" + target.Name + "`\n*" + target.Method + "* `" + target.Url + "`"
 	if resp != nil {
 		message += " `" + resp.Status + "`"
 	}
